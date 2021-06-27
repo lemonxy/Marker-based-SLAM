@@ -1,0 +1,27 @@
+%YAML:1.0
+---
+aruco-dictionary: ARUCO
+aruco-detectMode: DM_NORMAL
+aruco-cornerRefinementM: CORNER_LINES
+aruco-thresMethod: THRES_ADAPTIVE
+aruco-maxThreads: 1
+aruco-borderDistThres: 1.4999999664723873e-02
+aruco-lowResMarkerSize: 20
+aruco-minSize: 0.
+aruco-minSize_pix: -1
+aruco-enclosedMarker: 0
+aruco-NAttemptsAutoThresFix: 3
+aruco-AdaptiveThresWindowSize: -1
+aruco-ThresHold: 7
+aruco-AdaptiveThresWindowSize_range: 0
+aruco-markerWarpPixSize: 5
+aruco-autoSize: 0
+aruco-ts: 2.5000000000000000e-01
+aruco-pyrfactor: 2.
+aruco-error_correction_rate: 0.
+detectKeyPoints: 0
+runSequential: 1
+aruco_markerSize: 0.2
+maxVisibleFramesPerMarker: 25
+minBaseLine: 0.15
+max_makr_rep_err: 8.
