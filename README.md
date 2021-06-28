@@ -1,7 +1,7 @@
 # Marker-based SLAM
 ***
 此项目是SPM-SLAM的改进版本，也是一种基于AprilTag或者Aruco类型标记（marker）的SLAM系统，通过在环境中布置不同ID的marker，即可快速实现高精度的相机定位，经过在实验室环境下的测试，可以达到厘米级精度。具体流程可看图1。绿色部分是对SPM-SLAM的修改部分。  
-![图1](https://github.com/BIT-wangzb/Marker-based-SLAM/blob/master/image/Fig3-3.tif "图1")
+![图1](https://github.com/BIT-wangzb/Marker-based-SLAM/blob/master/image/流程图.jpg "图1")
 ## Papers
 SPM-SLAM: Simultaneous Localization and Mapping with quared Planar Markers
 ## 安装需求
