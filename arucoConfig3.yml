@@ -27,6 +27,8 @@ aruco_allowOneFrameInitialization: 0
 minBaseLine: 0.07
 max_makr_rep_err: 2.5
 AprilTag: 0
+aruco_minNumFramesRequired: 7
+apriltag-dictionary: tag36h11
 min_distR: 0.8
 max_theta: 32
-delta_theta: 2
+delta_theta: 3

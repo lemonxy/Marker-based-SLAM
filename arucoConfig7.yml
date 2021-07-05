@@ -22,10 +22,11 @@ aruco-error_correction_rate: 0.
 detectKeyPoints: 0
 runSequential: 1
 aruco_markerSize: 0.165
-aruco_allowOneFrameInitialization: 1
+aruco_allowOneFrameInitialization: 0
 minBaseLine: 0.07
 max_makr_rep_err: 5
 AprilTag: 0
+aruco_minNumFramesRequired: 5
 min_distR: 0.8
-max_theta: 35
+max_theta: 32
 delta_theta: 2
