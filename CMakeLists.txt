@@ -239,7 +239,6 @@ ENDIF()
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/src )
 LINK_LIBRARIES(${PROJECT_NAME})
 ADD_EXECUTABLE(spm-slam spm-slam.cpp  )
-ADD_EXECUTABLE(apriltag-slam apriltag-slam.cpp)
 ADD_EXECUTABLE(testPose testPose.cpp)
 target_link_libraries(testPose
         ${OpenCV_LIBS}
