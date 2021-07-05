@@ -1117,10 +1117,14 @@ std::vector<uint32_t> Map::getNearestNeighborsKeyFrames(const Frame &frame, size
 
 ///通过闭环marker检测当前的位姿
 ///重定位过程也用
-se3 Map::getBestPoseFromValidMarkers(const Frame &frame,const vector<uint32_t> &markersOfFrameToBeUsed,float minErrorRatio){
+se3 Map::getBestPoseFromValidMarkers(const Frame &frame,
+                                    const vector<uint32_t> &markersOfFrameToBeUsed,
+                                    float minErrorRatio,
+                                    float max_theta)
+{
 
     struct minfo{
-        int id;
+        uint32_t id;
         cv::Mat rt_f2m;
         double err;
     };
@@ -1137,17 +1141,18 @@ se3 Map::getBestPoseFromValidMarkers(const Frame &frame,const vector<uint32_t> &
         all_marker_locations.push_back(mi);
         ///BIT ADD
         if( marker_poseinfo.err_ratio > minErrorRatio &&
-            marker_poseinfo.distR > 1.2*marker_poseinfo.tau &&
-            marker_poseinfo.theta < 32)
+            marker_poseinfo.theta < max_theta)
             good_marker_locations.push_back(mi);
-        mi.rt_f2m=marker_poseinfo.sols[1];
-        all_marker_locations.push_back(mi);
-//        good_marker_locations.push_back(mi);
+        minfo mj;
+        mj.id = m;
+        mj.rt_f2m=marker_poseinfo.sols[1];
+        mj.err = marker_poseinfo.errs[1];
+        all_marker_locations.push_back(mj);
     }
 
 
     ///方法一：求重投影误差（有效marker多于两个）
-    if (markersOfFrameToBeUsed.size()>=2) {
+    /*if (markersOfFrameToBeUsed.size()>=2) {
         //collect all the markers 3d locations
         vector<cv::Point2f> markerPoints2d;
         vector<cv::Point3f> markerPoints3d;
@@ -1181,10 +1186,10 @@ se3 Map::getBestPoseFromValidMarkers(const Frame &frame,const vector<uint32_t> &
         }
 
         _debug_msg("err opt="<< reprj_error(markerPoints3d,markerPoints2d,frame.imageParams.undistorted(),  pose_f2g_out),10);
-    }
+    }*/
 
-    ///BIT ADD
-    /*if (markersOfFrameToBeUsed.size()>=2)
+    ///BIT method
+    if (markersOfFrameToBeUsed.size()>=2)
     {
         ///1,collect all the markers 3d locations
         vector<cv::Point2f> markerPoints2d;
@@ -1197,6 +1202,25 @@ se3 Map::getBestPoseFromValidMarkers(const Frame &frame,const vector<uint32_t> &
             markerPoints3d.insert(markerPoints3d.end(),p3d.begin(),p3d.end());
         }
         ///2,
+        auto join=[](uint32_t a ,uint32_t b)
+        {
+            if( a>b)swap(a,b);
+            uint64_t a_b;
+            uint32_t *_a_b_16=(uint32_t*)&a_b;
+            _a_b_16[0]=b;
+            _a_b_16[1]=a;
+            return a_b;
+        };
+        struct pairPoseInfo{
+            uint32_t id1;
+            uint32_t id2;
+            cv::Mat Tcm1;
+            cv::Mat Tcm2;
+            cv::Mat Tcw1;
+            cv::Mat Tcw2;
+            double err=0;
+        };
+        vector<pairPoseInfo> vPairPoseInfo;
         for(auto &ml1 : all_marker_locations)
         {
             auto R1 = map_markers[ml1.id].pose_g2m.getRotation3x3();
@@ -1205,26 +1229,56 @@ se3 Map::getBestPoseFromValidMarkers(const Frame &frame,const vector<uint32_t> &
             {
                 auto R2 = map_markers[ml2.id].pose_g2m.getRotation3x3();
                 if (ml1.id == ml2.id) continue;
-                auto R2_m = ml2.rt_f2m.rowRange(0,3).colRange(0,3);
+                pairPoseInfo p;
+                p.id1 = ml1.id;
+                p.Tcm1 = ml1.rt_f2m;
+                p.id2 = ml2.id;
+                p.Tcm2 = ml2.rt_f2m;
+                p.Tcw1 = ml1.rt_f2m * map_markers[ml1.id].pose_g2m.convert().inv();
+                p.Tcw2 = ml2.rt_f2m * map_markers[ml2.id].pose_g2m.convert().inv();
 
+                ///compute average rotation error
+                auto R2_m = ml2.rt_f2m.rowRange(0,3).colRange(0,3);
                 cv::Mat deltaR = R1.t()*R2 - R1_m.t()*R2_m;
-                ml1.err = cv::norm(deltaR);
+                double error = cv::norm(deltaR);
+                p.err = error;
+                vPairPoseInfo.emplace_back(p);
+
+//                uint64_t joinId = join(ml1.id, ml2.id);
+
+//                if ( mPairPoseInfo.find(joinId) == mPairPoseInfo.end())
+//                {
+//                    p.err = error;
+//                    mPairPoseInfo[joinId] = p;
+//                }
+//                else
+//                {
+//                    auto m1 = mPairPoseInfo.find(joinId);
+//                    if (m1->second.err < error) continue;
+//                    else
+//                        m1->second.err = error;
+//                }
             }
+//            for (auto m : mPairPoseInfo)
+//                ml1.err += m.second.err;
         }
-        std::sort(all_marker_locations.begin(),all_marker_locations.end(),
-                [](const minfo &a,const minfo &b){return a.err<b.err;});
-        auto &best=all_marker_locations.front();
+
+        std::sort(vPairPoseInfo.begin(),vPairPoseInfo.end(),
+                [](const pairPoseInfo &a,const pairPoseInfo &b){return a.err<b.err;});
+        auto &best=vPairPoseInfo.front();
+        double dist = cv::norm( best.Tcw1.rowRange(0,3).col(3) -
+                                    best.Tcw2.rowRange(0,3).col(3) );
         ///3,
         cout<<"relocalize best err = "<<best.err<<endl;
-        if (best.err < 0.3)
+        if (dist < 0.01)
         {
-            pose_f2g_out=best.rt_f2m *map_markers[best.id].pose_g2m.convert().inv();
+            pose_f2g_out=best.Tcw1;
             //now, do a  finer optimization
             cv::Mat rv=pose_f2g_out.getRvec(),tv=pose_f2g_out.getTvec();
             cv::solvePnP(markerPoints3d,markerPoints2d,frame.imageParams.CameraMatrix,cv::Mat::zeros(1,5,CV_32F),rv,tv,true);
             pose_f2g_out=se3(rv,tv);
         }
-    }*/
+    }
 
     if ( pose_f2g_out.isValid()==false &&  good_marker_locations.size()>0){
         cout<<"one valid marker\n";
@@ -1247,6 +1301,12 @@ se3 Map::getBestPoseFromValidMarkers(const Frame &frame,const vector<uint32_t> &
         //estimate current location
         pose_f2g_out= best.rt_f2m *map_markers.at(best.id).pose_g2m.convert().inv();
 //        cout<<"relocalize baseline = "<<min_baseline<<endl;
+    }
+    if (pose_f2g_out.isValid() == false && markersOfFrameToBeUsed.size() == 1)
+    {
+//        std::sort(all_marker_locations.begin(),all_marker_locations.end(),[](const minfo &a,const minfo &b){return a.err<b.err;});
+        auto best=all_marker_locations[0];
+        pose_f2g_out= best.rt_f2m *map_markers.at(best.id).pose_g2m.convert().inv();
     }
     return   pose_f2g_out;
 

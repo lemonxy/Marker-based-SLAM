@@ -784,7 +784,7 @@ namespace ucoslam
     }
     avg_theta /=n;
     cout<<"avg_theta = "<<avg_theta<<endl;
-    if (avg_theta >= 1)
+    if (avg_theta >= 2)
     {
         for (size_t i = 0; i < marker_poses_v1.size(); ++i)
         {
@@ -968,6 +968,9 @@ namespace ucoslam
     }
 
     ///BIT ADD
+    /// 1, marker_views: the unknown marker's observed in each frame
+    /// 2, vvMarker_Pose: valid marker pose in frame
+    /// 3, vvMarkers: valide markers' observed in each frame
     cv::Mat ARUCO_bestMarkerPose_BIT(const vector<aruco::Marker> &marker_views,
                                  vector<vector<se3> > vvMarker_poses,
                                  vector<uint32_t> vframes,
@@ -975,7 +978,9 @@ namespace ucoslam
                                  const vector<vector<aruco::Marker> > vvMarkers,
                                  const vector<se3> &frameposes_f2g,
                                  const ucoslam::ImageParams &cp,
-                                 float markerSize)
+                                 float markerSize,
+                                 vector<double> vmarkers_thetas,
+                                 float theta_thredhold)
     {
 
 //        assert( marker_views.size()>=2);
@@ -987,6 +992,7 @@ namespace ucoslam
             double theta_err = 0.0;
             int si = 0;
             uint32_t frameId=0;
+            double fov = 0.0;
         };
         vector<poseinfo> solutions;
 
@@ -998,11 +1004,13 @@ namespace ucoslam
             pi1.pose_g2m= frameposes_f2g[i].convert().inv() * ss[0].first; // g2f  * f2m
             pi1.si = 0;
             pi1.frameId = vframesFseqId[i];
+            pi1.fov = vmarkers_thetas[i];
             solutions.push_back(pi1);
             pi2.pose_g2m= frameposes_f2g[i].convert().inv() * ss[1].first; // g2f  * f2m
             pi2.si = 1;
             pi2.frameId = vframesFseqId[i];
-            solutions.push_back(pi2);
+            pi2.fov = vmarkers_thetas[i];
+//            solutions.push_back(pi2);
         }
         //now, compute the reproj error and get the best
         ///Step2：计算每个位姿在多帧下的总投影平均误差，选择误差最小的
@@ -1048,14 +1056,42 @@ namespace ucoslam
                 [](const poseinfo&a,const poseinfo&b){return a.theta_err<b.theta_err;});
         for (auto sol : solutions)
         {
-            cout<<"frameId = "<<sol.frameId<<",theta_err: "<<sol.theta_err<<", si = "<<sol.si<<endl;
+            cout<<"frameId = "<<sol.frameId<<",theta: "<<sol.fov<<", si = "<<sol.si<<", err: "<<sol.theta_err<<endl;
         }
 
-        _debug_msg("repj  err="<<solutions.front().err<<" "<<solutions.back().err,10);
-        if (solutions.front().theta_err < 0.3)
+        /*if (solutions.front().theta_err < 0.25)
             return solutions.front().pose_g2m;
         else
-            return cv::Mat();
+            return cv::Mat();*/
+
+        _debug_msg("repj  err="<<solutions.front().err<<" "<<solutions.back().err,10);
+        if (solutions[0].frameId != solutions[1].frameId)
+        {
+            double distR = cv::norm(solutions[0].pose_g2m.rowRange(0,3).colRange(0,3) -
+                                    solutions[1].pose_g2m.rowRange(0,3).colRange(0,3));
+            cout<<"distR: "<<distR<<endl;
+            if (distR < 0.1) return solutions[0].pose_g2m;
+        }
+        else
+        {
+            double distR = cv::norm(solutions[0].pose_g2m.rowRange(0,3).colRange(0,3) -
+                                    solutions[1].pose_g2m.rowRange(0,3).colRange(0,3));
+            cout<<"same id distR: "<<distR<<endl;
+
+            double distR1 = cv::norm(solutions[0].pose_g2m.rowRange(0,3).colRange(0,3) -
+                                    solutions[2].pose_g2m.rowRange(0,3).colRange(0,3));
+            double distR2 = cv::norm(solutions[1].pose_g2m.rowRange(0,3).colRange(0,3) -
+                                    solutions[2].pose_g2m.rowRange(0,3).colRange(0,3));
+            cout<<"dist1: "<<distR1<<", dist2: "<<distR2<<endl;
+            if (distR1 < distR2) return solutions[0].pose_g2m;
+            else return solutions[1].pose_g2m;
+        }
+        /*if (solutions.front().fov < theta_thredhold)//solutions.front().theta_err < 0.5 &&
+        {
+            return solutions.front().pose_g2m;
+        }
+        else
+            return cv::Mat();*/
     }
 
     vector<int> outlierFiltering(const vector<float> &data,int ntimes,float *mean_out,float *stddev_out){

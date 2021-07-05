@@ -84,6 +84,9 @@ bool solvePnPRansac( const Frame &frame, std::shared_ptr<Map> map, std::vector<c
                         markerInNeighbors.insert(m.id);
                 }
             }
+            /// BIT add
+            if (markerInNeighbors.size() == 0) return;
+
             cout<<"local marker: ";
             for (auto m : markerInNeighbors)
                 cout<<m<<", ";

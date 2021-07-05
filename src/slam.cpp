@@ -518,6 +518,10 @@ uint32_t Slam::getBestReferenceFrame(const Frame &curKeyFrame,  const se3 &curPo
         }
     }
 
+    if ( validMarkers.size()==0){//NO validmarkers
+        assert(_curKFRef!=-1);
+        return _curKFRef;
+    }
     ///Step2, 从这些Marker的关键帧中选择距离最小的帧
     pair<uint32_t,float> nearest_frame_dist(std::numeric_limits<uint32_t>::max(),std::numeric_limits<float>::max());
 //    pair<uint32_t,double> nearest_frame_theta(std::numeric_limits<uint32_t>::max(),std::numeric_limits<double>::max());
@@ -658,19 +662,23 @@ bool Slam::relocalize_withmarkers( Frame &f,se3 &pose_f2g_out )
     }
 
 
-    pose_f2g_out= TheMap->getBestPoseFromValidMarkers(f,valid_markers_found,_params.aruco_minerrratio_valid);
+    pose_f2g_out= TheMap->getBestPoseFromValidMarkers(f,valid_markers_found,
+                                                    _params.aruco_minerrratio_valid,
+                                                    _params.max_theta);
     ///BIT ADD
-    /*float baseline = cv::norm(pose_f2g_out.getTvec(),
-                                TheMap->keyframes[_curKFRef].pose_f2g.getTvec());
-    cout << "relocalize baseline = " << baseline << endl;
-    if (baseline > 10*Slam::getParams().minBaseLine)
+    if (_curKFRef != -1)
     {
-        cout << "track baseline = " << baseline << endl;
-        cout << "track failed!\n";
-        return false;
-    }*/
+        float baseline = cv::norm(pose_f2g_out.getTvec()-
+                                  TheMap->keyframes[_curKFRef].pose_f2g.getTvec());
+        cout << "relocalize baseline = " << baseline << endl;
+        if (baseline > 20*Slam::getParams().minBaseLine)
+        {
+            cout << "track baseline = " << baseline << endl;
+            cout << "track failed!\n";
+            return false;
+        }
+    }
     return pose_f2g_out.isValid();
-
 }
 
 
@@ -697,7 +705,11 @@ std::vector<cv::DMatch> Slam::matchMapPtsOnPrevFrame(Frame & curframe, Frame &pr
 se3 Slam::track(Frame &curframe,se3 lastKnownPose)
 {
 
-    if (curframe.markers.size() == 0) return se3();
+    if (curframe.markers.size() == 0)
+    {
+        cout<<"tracking failed!\n";
+        return se3();
+    }
     //工具：检测非歧义函数
     //check that not ambiguos
     auto checkNoAmbiguos= [&](const vector<cv::DMatch> &map_matches){
@@ -758,12 +770,19 @@ se3 Slam::track(Frame &curframe,se3 lastKnownPose)
 
     ///Step2, Marker求解位姿
     solvePnp( curframe,TheMap,map_matches,estimatedPose,_curKFRef);
+
+    ///BIT Add
+    if (lastKnownPose == estimatedPose)
+    {
+        cout<<"tracking failed!\n";
+        return se3();
+    }
     tev.add("poseEstimation");
 
     ///Step3：检测位姿结果是否可靠
     //determine if the pose estimated is reliable
     //is aruco accurate
-    bool isArucoTrackOk=true;
+    bool isArucoTrackOk=false;
     if ( curframe.markers.size()>0){
         float baseLine=cv::norm(estimatedPose.getTvec(),TheMap->keyframes[_curKFRef].pose_f2g.getTvec());
 
@@ -776,24 +795,24 @@ se3 Slam::track(Frame &curframe,se3 lastKnownPose)
             //is it observed with enough reliability? < 3
             if (curframe.markers_solutions[i].err_ratio < _params.aruco_minerrratio_valid) continue;
             ///BIT ADD
-            /*if (curframe.markers_solutions[i].err_ratio >= _params.aruco_minerrratio_valid &&
-                curframe.markers_solutions[i].theta < _params.max_theta &&
-                curframe.markers_solutions[i].distR < 1.2 * curframe.markers_solutions[i].tau)//
+            if (curframe.markers_solutions[i].err_ratio >= _params.aruco_minerrratio_valid &&
+                curframe.markers_solutions[i].theta < _params.max_theta )//curframe.markers_solutions[i].distR < 1.2 * curframe.markers_solutions[i].tau
             {
                 isArucoTrackOk=true;
+                cout<<"tracking success!\n";
                 break;
-            }*/
-            isArucoTrackOk=true;
+            }
+//            isArucoTrackOk=true;
             break;
 
         }
         ///BIT ADD
-        if (baseLine > 10*Slam::getParams().minBaseLine)
+        /*if (baseLine > 10*Slam::getParams().minBaseLine)
         {
             cout<<"track baseline = "<<baseLine<<endl;
             cout<<"track failed!\n";
             isArucoTrackOk = false;
-        }
+        }*/
 
     }
 

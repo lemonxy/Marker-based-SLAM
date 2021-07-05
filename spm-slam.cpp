@@ -70,19 +70,21 @@ int main(int argc,char **argv){
 //        //Ok, lets start
         ucoslam::TimerAvrg Fps;
         char k=0;
+        std::map<int, cv::Mat> frame_pose_map1;  // set of poses and the frames they were detected
         while (vcap.grab() && k!=27 ) {
             vcap.retrieve(in_image);
             int currentFrameIndex = vcap.get(CV_CAP_PROP_POS_FRAMES);
             Fps.start();
-            Slam.process(in_image, image_params,currentFrameIndex);
+            cv::Mat pose = Slam.process(in_image, image_params,currentFrameIndex);
             Fps.stop();
+            if (!pose.empty())
+                frame_pose_map1.insert({currentFrameIndex,pose});
 //            cout<<"Image "<<currentFrameIndex<<" fps="<<1./Fps.getAvrg()<<endl;
              k= TViewer->show(TheMap, in_image, Slam.getCurrentPose_f2g() , "#" + std::to_string(currentFrameIndex) + " fps=" + to_string(1./Fps.getAvrg()) );
         }
 
-
-
-
+//        savePosesToFile("pose.txt",frame_pose_map1);
+//        cerr<<"The poses have been saved to "<<argv[6]<<endl;
         cout<<"Image = "<<Slam.num_of_image<<", tracking = "<<Slam.num_of_success;
         double rate = Slam.num_of_success/float(Slam.num_of_image);
         cout<<", Tracking rate = "<<rate<<endl;

@@ -51,7 +51,7 @@ bool MapInitializer::process(const Frame &frame, std::shared_ptr<Map>  map){
     if(frame.kpts.size()<10 && _params.mode==KEYPOINTS) return false;
     ///单帧初始化
     cout<<"allow Aruco One Frame "<<_params.allowArucoOneFrame<<endl;
-    if (_params.allowArucoOneFrame)
+    if (_params.allowArucoOneFrame)//
         if (aruco_one_frame_initialize(frame,map)) {
             _debug_msg_("initialization from single image using aruco");
             return true;
@@ -177,11 +177,13 @@ bool MapInitializer::initialize(const Frame &frame1, const Frame &frame2,    vec
 
 
     //now, for each marker set the the frame info in which it has been seen
-    for(auto &marker:kfframe1.und_markers){
+    for(auto &marker:kfframe1.und_markers)
+    {
         map->addMarker(marker);
         map->addMarkerObservation(marker.id,kfframe1.idx);
     }
-    for(auto &marker:kfframe2.und_markers){
+    for(auto &marker:kfframe2.und_markers)
+    {
         map->addMarker(marker);
         map->addMarkerObservation(marker.id,kfframe2.idx);
     }
@@ -1194,7 +1196,7 @@ bool MapInitializer::aruco_one_frame_initialize(const Frame &frame, std::shared_
     int nGoodMarkers=0;
     for(size_t m=0;m<frame.und_markers.size();m++){
         if ( frame.markers_solutions[m].err_ratio > _params.aruco_minerrratio_valid &&
-             frame.markers_solutions[m].distR > 1.3*frame.markers_solutions[m].tau &&
+//             frame.markers_solutions[m].distR > 1.3*frame.markers_solutions[m].tau &&
              frame.markers_solutions[m].theta < _params.max_theta)
             nGoodMarkers++;
     }
@@ -1212,8 +1214,8 @@ bool MapInitializer::aruco_one_frame_initialize(const Frame &frame, std::shared_
         auto &MapMarker=map->addMarker( frame.und_markers[m]);
         map->addMarkerObservation(MapMarker.id,MapKeyFrame.idx);
         if ( frame.markers_solutions[m].err_ratio > _params.aruco_minerrratio_valid &&
-                frame.markers_solutions[m].distR > 1.2*frame.markers_solutions[m].tau &&
-                frame.markers_solutions[m].theta < 35)
+//                frame.markers_solutions[m].distR > 1.2*frame.markers_solutions[m].tau &&
+                frame.markers_solutions[m].theta < _params.max_theta)
         {
             MapMarker.pose_g2m=frame.markers_solutions[m].sols[0];
             cout<<"create new marker, id = "<<MapMarker.id<<", distR="<<frame.markers_solutions[m].distR

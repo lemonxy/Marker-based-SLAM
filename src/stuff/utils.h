@@ -304,7 +304,9 @@ cv::Mat ARUCO_bestMarkerPose_BIT(const vector<aruco::Marker> &marker_views,
                                  const vector<vector<aruco::Marker> > vvMarkers,
                                  const vector<se3> &frameposes_f2g,
                                  const ucoslam::ImageParams &cp,
-                                 float markerSize);
+                                 float markerSize,
+                                 vector<double> vmarkers_theta,
+                                 float theta_thredhold);
     double computeDeltaTheta(vector<aruco::Marker> markers1,
                              vector<aruco::Marker> markers2,
                              const ucoslam::ImageParams &cp,

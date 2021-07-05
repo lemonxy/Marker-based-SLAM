@@ -141,7 +141,10 @@ public:
     void removeBadAssociations(const vector<std::pair<uint32_t,uint32_t>> &BadAssociations,int minNumPtObs);
 
     //given the frame passed, returns the best possible estimation of the pose using only the markers in the map
-    se3 getBestPoseFromValidMarkers(const Frame &frame, const vector<uint32_t> &markersOfFrameToBeUsed, float minErrorRatio);
+    se3 getBestPoseFromValidMarkers(const Frame &frame,
+                                    const vector<uint32_t> &markersOfFrameToBeUsed,
+                                    float minErrorRatio,
+                                    float max_theta);
 
     template<typename Iterator>
     std::vector<uint32_t> getMapPointsInFrames(Iterator fstart,Iterator fend);

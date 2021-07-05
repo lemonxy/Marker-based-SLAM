@@ -122,24 +122,27 @@ namespace ucoslam
         if( getNOFValidMarkers()==0 && TheMap->map_points.size()!=0) mayNeedChangeMapScale=true;
 
         ///Step4: ADD marker,计算新Markers的位姿
-        for(size_t m=0;m< newFrame.markers.size();m++){
+        for(size_t m=0;m< newFrame.markers.size();m++)
+        {
+            ///BIT ADD
+//            if (newFrame.markers_solutions[m].theta > Slam::getParams().max_theta)
+//                continue;
             //add marker if not yet
             auto &map_marker= TheMap->addMarker(newFrame.markers[m]);
             //add observation
-            ///BIT ADD
-//            if (newFrame.markers_solutions[m].theta < Slam::getParams().max_theta)
             TheMap->addMarkerObservation(map_marker.id,newFrame.idx);
             //has the marker valid info already?
             ///方法一： 计算新Markers的位姿
             if (!map_marker.pose_g2m.isValid())
             {//no, see if it is possible to add the pose now with current data
 
+//                cout<<"compute new marker pose, id: "<<map_marker.id<<endl;
                 //if is not the first marker and is allowed oneframe initialization
                 if (!mayNeedChangeMapScale  &&
                     Slam::getParams().aruco_allowOneFrameInitialization )  {
                     //Is the detection reliable (unambiguos)? If so, assign pose
                     if( newFrame.markers_solutions[m].err_ratio> Slam::getParams().aruco_minerrratio_valid &&
-                        newFrame.markers_solutions[m].distR > 1.3*newFrame.markers_solutions[m].tau &&
+//                        newFrame.markers_solutions[m].distR > 1.3*newFrame.markers_solutions[m].tau &&
                         newFrame.markers_solutions[m].theta < Slam::getParams().max_theta)
                     {
                         map_marker.pose_g2m = newFrame.pose_f2g.inv()*newFrame.markers_solutions[m].sols[0];
@@ -159,7 +162,21 @@ namespace ucoslam
                 map_marker.frames.size()>=size_t(Slam::getParams().aruco_minNumFramesRequired) )
             {
                 //check how many views with enough distance are
-                vector<uint32_t> vframes( map_marker.frames.begin(),map_marker.frames.end());
+//                vector<uint32_t> vframes( map_marker.frames.begin(),map_marker.frames.end());
+                ///BIT ADD
+                vector<uint32_t> vframes;
+                for (auto f : map_marker.frames)
+                {
+                    for (size_t m = 0; m < TheMap->keyframes[f].markers.size(); m++)
+                    {
+                        if (TheMap->keyframes[f].markers[m].id == map_marker.id)
+                        {
+                            if (TheMap->keyframes[f].markers_solutions[m].theta < Slam::getParams().max_theta)
+                                vframes.emplace_back(f);
+                        }
+                    }
+                }
+                if (vframes.size() < size_t(Slam::getParams().aruco_minNumFramesRequired)) continue;
                 ///BIT ADD
                /* vector<uint32_t> vframes;
                 for (auto f : map_marker.frames)
@@ -174,7 +191,7 @@ namespace ucoslam
                 std::vector<bool> usedFrames(vframes.size(),false);
                 std::vector<uint32_t> farEnoughViews;farEnoughViews.reserve(map_marker.frames.size());
                 ///1，从帧组中找到距离合适的帧组，即排除比较近的帧
-                for(size_t i=0;i<vframes.size() ;i++){
+                for(size_t i=0; i<vframes.size(); i++){
                     //find farthest
                     if (!usedFrames[i]){
                         pair<int,float> best(-1,std::numeric_limits<float>::lowest());
@@ -188,7 +205,7 @@ namespace ucoslam
 //                                                                 TheMap->keyframes[vframes[j]].markers,
 //                                                                 TheMap->keyframes[vframes[i]].imageParams.undistorted(),
 //                                                                 Slam::getParams().aruco_markerSize);
-                                if (    (d>Slam::getParams().minBaseLine || theta > Slam::getParams().delta_theta) &&
+                                if (    (d>Slam::getParams().minBaseLine+0.03 || theta > Slam::getParams().delta_theta) &&
                                         d> best.first)
                                     best={j,d};
                             }
@@ -207,15 +224,19 @@ namespace ucoslam
                 if (farEnoughViews.size()>=size_t(Slam::getParams().aruco_minNumFramesRequired)){//at least x views to estimate the pose using multiple views
 
                     vector<aruco::Marker > marker_views;
+                    vector<double> vmarker_thetas;
                     vector<se3> frame_poses;
                     ////BIT ADD****
                     vector<vector<se3> > vvMarker_poses;
                     vector<vector<aruco::Marker> > vvMapMarker_views;
                     vector<uint32_t> frameFseqId;
                     ///****
+                    int valid_marker = 0;
                     for(auto f:farEnoughViews){
                         marker_views.push_back(TheMap->keyframes[f].getMarker(map_marker.id));
                         frame_poses.push_back(TheMap->keyframes[f].pose_f2g);
+                        double theta = TheMap->keyframes[f].getMarkerPoseIPPE(map_marker.id).theta;
+                        vmarker_thetas.push_back(theta);
 
                         ////BIT ADD****
                         frameFseqId.emplace_back(TheMap->keyframes[f].fseq_idx);
@@ -230,27 +251,35 @@ namespace ucoslam
                             if (map_marker.id == map_marker_i.id) continue;
                             vMapMarker_poses.push_back(map_marker_i.pose_g2m);
                             vMapMarker_views.push_back(TheMap->keyframes[f].getMarker(m.id));
+                            valid_marker++;
                         }
                         vvMarker_poses.push_back(vMapMarker_poses);
                         vvMapMarker_views.push_back(vMapMarker_views);
                         ///****
                     }
                     ///BIT ADD
-                    auto pose=ARUCO_bestMarkerPose_BIT(marker_views,vvMarker_poses,
-                                                       farEnoughViews, frameFseqId,
-                                                       vvMapMarker_views,
-                                                       frame_poses, newFrame.imageParams.undistorted(), map_marker.size);
-                    if (pose.empty())
+                    float tau_theta = Slam::getParams().max_theta;
+                    if (valid_marker != 0)
+                    {
+                        auto pose=ARUCO_bestMarkerPose_BIT(marker_views,vvMarker_poses,
+                                                           farEnoughViews, frameFseqId,
+                                                           vvMapMarker_views,
+                                                           frame_poses, newFrame.imageParams.undistorted(), map_marker.size,
+                                                           vmarker_thetas,
+                                                           tau_theta);
+                        ///******
+                        if (!pose.empty()){
+                            _debug_msg_("added marker "<<map_marker.id<<" using multiple views");
+                            cout<<"Multi, new marker id = "<<map_marker.id<<endl;
+                            map_marker.pose_g2m=pose;
+                        }
+                    }
+                    /*if (pose.empty())
                     {
                         auto pose1=ARUCO_bestMarkerPose(marker_views,frame_poses,newFrame.imageParams.undistorted(), map_marker.size);
                         pose1.copyTo(pose);
-                    }
-                    ///******
-                    if (!pose.empty()){
-                        _debug_msg_("added marker "<<map_marker.id<<" using multiple views");
-                        cout<<"Multi, new marker id = "<<map_marker.id<<endl;
-                        map_marker.pose_g2m=pose;
-                    }
+                    }*/
+
                 }
             }
         }
@@ -810,21 +839,21 @@ namespace ucoslam
         {
             if (TheMap->map_markers.count (m.id)==0)
             {
-                cout<<"condition a\n";
-                return true;
+                /*cout<<"condition a\n";
+                return true;*/
                 ///BIT ADD
-               /* if(frame_in.markers_solutions[i].theta < Slam::getParams().max_theta)
+                if(frame_in.markers_solutions[i].theta < Slam::getParams().max_theta)
                 {
                     cout<<"condition a\n";
                     return true;
-                }*/
+                }
             }
             i++;
         }
 
 
         ///conditon b: 地图中有Markers位姿无效，而该帧的Marker位姿歧义大于阈值，该阈值被设为3
-        for(auto m:frame_in.und_markers){
+        /*for(auto m:frame_in.und_markers){
          if (TheMap->map_markers.count (m.id)!=0) {//is in the map
              if( !TheMap->map_markers [ m.id].pose_g2m.isValid()  )
              {
@@ -838,11 +867,10 @@ namespace ucoslam
                     return true;
                 }
                      //adding this will set a valid location for m.id
-                 ///***
              }//with invalid pose
 
          }
-     }
+     }*/
 
         ///condition c: 与参考关键帧的基线大于阈值
         cout<<"Ref: "<<curKFRef<<endl;

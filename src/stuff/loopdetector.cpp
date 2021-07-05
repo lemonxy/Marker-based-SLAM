@@ -111,7 +111,7 @@ vector<LoopDetector::LoopClosureInfo>  LoopDetector::detectLoopClosure_Markers(F
 
     // Step3,利用闭环Marker，计算当前帧位姿
     // Step3.1，利用方法1计算出一个最佳位姿
-    se3 safe_expectedpose=TheMap->getBestPoseFromValidMarkers(frame,markersCausingLoopClosure,4);
+    se3 safe_expectedpose=TheMap->getBestPoseFromValidMarkers(frame,markersCausingLoopClosure,4,35);
      //is the pose  good enough?
     if (   safe_expectedpose.isValid())
         expectedposes.push_back(safe_expectedpose);

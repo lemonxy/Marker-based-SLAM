@@ -213,6 +213,7 @@ void FrameExtractor::process(const cv::Mat &image,const ImageParams &ip,
                 mp.err_ratio=sols[1].second/sols[0].second;
                 mp.distR = cv::norm(phi);
                 mp.theta = (theta1+theta2)/2;
+                ///test parameter
                 mp.tau = 0.0007*mp.theta*mp.theta-0.0483*mp.theta+1.3011;
                 cout<<"deltaR = "<<mp.distR<<", theta="<<mp.theta<<", ratio="<<mp.err_ratio<<endl;
                 frame.markers_solutions.push_back(mp);
